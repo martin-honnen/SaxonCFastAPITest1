@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from saxonche import PySaxonProcessor
+from saxonche import PySaxonProcessor, PySaxonApiError
 
 # create single Saxon processor
 saxon_proc = PySaxonProcessor()
@@ -30,9 +30,12 @@ async def root():
 
 @app.get("/hello/{name}")
 async def say_hello(name: str):
-    xdm_doc = saxon_proc.parse_xml(xml_file_name=name)
-    xpath_proc = saxon_proc.new_xpath_processor()
-    xpath_proc.set_context(xdm_item=xdm_doc)
-    xpath_result = xpath_proc.evaluate('root/foo ! map { local-name() : string() }')
-    api_result = [{key.string_value : map.get(key).head.string_value} for map in xpath_result for key in map.keys() ]
-    return api_result
+    try:
+        xdm_doc = saxon_proc.parse_xml(xml_file_name=name)
+        xpath_proc = saxon_proc.new_xpath_processor()
+        xpath_proc.set_context(xdm_item=xdm_doc)
+        xpath_result = xpath_proc.evaluate('root/foo ! map { local-name() : string() }')
+        api_result = [{key.string_value : map.get(key).head.string_value} for map in xpath_result for key in map.keys() ]
+        return api_result
+    except PySaxonApiError as e:
+        return {"error": str(e)}
