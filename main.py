@@ -6,6 +6,8 @@ from saxonche import PySaxonProcessor
 
 # create single Saxon processor
 saxon_proc = PySaxonProcessor()
+saxon_proc.set_configuration_property('http://saxon.sf.net/feature/allowedProtocols', 'http,https')
+
 
 
 @asynccontextmanager
