@@ -106,3 +106,46 @@ async def xquery(xquery_request: Request):
         xquery_processor.exception_clear()
 
         return result_python_map
+
+@app.post("/api/xpath")
+async def xpath(xpath_request: Request):
+    input_type = xpath_request.inputType
+    xpath_code = xpath_request.inputCode
+
+    xpath_processor = saxon_proc.new_xpath_processor()
+
+    input_data = xpath_request.inputData
+
+    if input_type == 0 and input_data is not None:
+        try:
+            xdm_input = saxon_proc.parse_xml(xml_text=input_data, encoding="utf8")
+        except RuntimeError as e:
+            return {'messages': f'Error parsing your XML input: {e}', 'results': None}
+        else:
+            xpath_processor.set_context(xdm_item=xdm_input)
+    elif input_type == 1 and input_data is not None:
+        try:
+            json_input = PyXdmFunctionItem().get_system_function(saxon_proc, '{http://www.w3.org/2005/xpath-functions}parse-json', 1).call(saxon_proc, [saxon_proc.make_string_value(input_data, encoding="utf8")])
+        except RuntimeError as e:
+            return {'messages': f'Error parsing your JSON input: {e}', 'results': None}
+        else:
+            xpath_processor.set_context(xdm_item=json_input.head)
+    elif (input_type == 2 and input_data is not None):
+        xpath_processor.set_context(xdm_item=saxon_proc.make_string_value(input_data, encoding="UTF-8"))
+
+    xpath_processor.set_property('!method', 'adaptive')
+    xpath_processor.set_property('!indent', 'yes')
+
+    try:
+        xdm_result = xpath_processor.evaluate(xpath_code)
+    except RuntimeError as e:
+        result_python_map = {'messages': f'{e}', 'results': None}
+    else:
+        result_items = []
+        for xdm_item in xdm_result:
+            result_items.append(str(xdm_item))
+        result_python_map = { 'results': result_items }
+
+    xpath_processor.exception_clear()
+
+    return result_python_map
