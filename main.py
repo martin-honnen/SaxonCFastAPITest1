@@ -66,6 +66,52 @@ async def say_hello(name: str):
         return {"error": str(e)}
 
 
+@app.post("/api/transform")
+async def transform(xslt_request: Request):
+
+    input_type = xslt_request.inputType
+    xslt_code = xslt_request.inputCode
+    # works but doesn't provide error handling
+    # fn_transform = PyXdmFunctionItem().get_system_function(saxon_proc, "{http://www.w3.org/2005/xpath-functions}transform", 1)
+    # fn_transform_arg = saxon_proc.make_map2({'stylesheet-text': saxon_proc.make_string_value(xslt_code), 'delivery-format': saxon_proc.make_string_value('serialized'), 'base-output-uri': saxon_proc.make_string_value('http://example.com/string-results/')})
+    # xdm_result = fn_transform.call(saxon_proc, [fn_transform_arg])
+    xpath_processor = saxon_proc.new_xpath_processor()
+    xpath_processor.set_parameter('stylesheet-text', saxon_proc.make_string_value(xslt_code, encoding="utf8"))
+
+    input_data = xslt_request.inputData
+
+    if input_type == 0 and input_data is not None:
+        xpath_processor.set_parameter('source-text',
+                                      saxon_proc.make_string_value(input_data, encoding="utf8"))
+        fn_transform_call = "transform(map{'stylesheet-text':$stylesheet-text,'delivery-format':'serialized','source-node':parse-xml($source-text)})"
+    elif input_type == 1 and input_data is not None:
+        xpath_processor.set_parameter('json-text',
+                                      saxon_proc.make_string_value(input_data, encoding="utf8"))
+        fn_transform_call = "let $json-input := parse-json($json-text) return transform(map{'stylesheet-text':$stylesheet-text,'delivery-format':'serialized','global-context-item':$json-input,'initial-match-selection':$json-input})"
+    elif input_type == 2 and input_data is not None:
+        xpath_processor.set_parameter('input-text',
+                                      saxon_proc.make_string_value(input_data, encoding="utf8"))
+        fn_transform_call = "transform(map{'stylesheet-text':$stylesheet-text,'delivery-format':'serialized','global-context-item':$input-text,'initial-match-selection':$input-text})"
+
+    else:
+        fn_transform_call = "transform(map{'stylesheet-text':$stylesheet-text,'delivery-format':'serialized'})"
+
+    try:
+        xdm_map = xpath_processor.evaluate_single(fn_transform_call)
+        # xdm_item = xpath_processor.evaluate_single(fn_transform_call)
+    except RuntimeError as e:
+        result_python_map = {'messages': f'{e}', 'results': None}
+    else:
+        # xdm_map = xdm_item.get_map_value()
+        result_docs = []
+        for uri in xdm_map.keys():
+            result_docs.append({'url': uri.string_value, 'content': xdm_map.get(uri).head.string_value})
+        result_python_map = {'results': result_docs}
+
+    xpath_processor.exception_clear()
+
+    return result_python_map
+
 @app.post("/api/xquery")
 async def xquery(xquery_request: Request):
     input_type = xquery_request.inputType
