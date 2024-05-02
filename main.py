@@ -195,3 +195,56 @@ async def xpath(xpath_request: Request):
     xpath_processor.exception_clear()
 
     return result_python_map
+
+@app.post("/api/schematron")
+async def schematron(schematron_request: Request):
+    schematron_code = schematron_request.inputCode
+    xml_code = schematron_request.inputData
+
+    #xslt30_processor = saxon_proc.new_xslt30_processor()
+
+    #xslt30_processor.set_cwd('.')
+
+    try:
+        saxon_proc.clear_configuration_properties()
+        xslt30_processor = saxon_proc.new_xslt30_processor()
+        xslt30_processor.set_cwd('.')
+        compiled_schxslt = xslt30_processor.compile_stylesheet(stylesheet_file='pipeline-for-svrl.xsl.SaxonEE12CompiledForHE.sef')
+    except RuntimeError as e:
+        return { 'messages' : f'Schematron compilation failed: {e}'}
+    else:
+        saxon_proc.set_configuration_property('http://saxon.sf.net/feature/allowedProtocols', 'http,https')
+        xslt30_processor = saxon_proc.new_xslt30_processor()
+
+        #doc_builder = saxon_proc.new_document_builder()
+
+        try:
+            schematron_node = saxon_proc.parse_xml(xml_text=schematron_code, encoding="utf8")#doc_builder.parse_xml(xml_text=schematron_code, encoding="utf8")
+        except RuntimeError as e:
+            return { 'messages' : f'Error(s) parsing your Schematron: {e}' }
+        else:
+            try:
+                compiled_schematron = compiled_schxslt.apply_templates_returning_value(xdm_value=schematron_node)
+            except RuntimeError as e:
+                return { 'messages' : f'Schematron compilation failed: {e}' }
+            else:
+                xslt30_processor = saxon_proc.new_xslt30_processor()
+
+                try:
+                    compiled_schematron_executable = xslt30_processor.compile_stylesheet(stylesheet_node=compiled_schematron.head)
+                except RuntimeError as e:
+                    return { 'messages' : 'Schematron compilation failed: ' }
+                else:
+                    try:
+                        xdm_node = saxon_proc.parse_xml(xml_text=xml_code, encoding="utf8")#doc_builder.parse_xml(xml_text=xml_code, encoding="utf8")
+                    except RuntimeError as e:
+                        return {'messages': f'Error(s) parsing input XML: {e}' }
+                    else:
+                        try:
+                            validation_result = compiled_schematron_executable.transform_to_string(xdm_node=xdm_node)
+                        except RuntimeError as e:
+                            result_map = { 'messages' : f'Error(s) during Schematron validation: {e}'  }
+                        else:
+                            result_map = { 'results' : [ validation_result ] }
+
+                        return result_map
