@@ -33,6 +33,12 @@ from saxonche import PySaxonProcessor, PySaxonApiError, PyXdmFunctionItem
 saxon_proc = PySaxonProcessor()
 saxon_proc.set_configuration_property('http://saxon.sf.net/feature/allowedProtocols', 'http,https')
 
+# temporary workaround for security vulnerability with XXE, disallow DTDs/DOCTYPE
+#https://saxonica.plan.io/issues/6711#note-12
+
+saxon_proc.set_configuration_property("http://saxon.sf.net/feature/parserFeature?uri=http://apache.org/xml/features/disallow-doctype-decl", "true")
+
+
 
 
 @asynccontextmanager
