@@ -105,7 +105,7 @@ async def transform(xslt_request: Request):
     try:
         xdm_map = xpath_processor.evaluate_single(fn_transform_call)
         # xdm_item = xpath_processor.evaluate_single(fn_transform_call)
-    except RuntimeError as e:
+    except PySaxonApiError as e:
         result_python_map = {'messages': f'{e}', 'results': None}
     else:
         # xdm_map = xdm_item.get_map_value()
