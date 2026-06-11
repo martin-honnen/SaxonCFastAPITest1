@@ -33,6 +33,9 @@ from saxonche import PySaxonProcessor, PySaxonApiError, PyXdmFunctionItem
 saxon_proc = PySaxonProcessor()
 saxon_proc.set_configuration_property('http://saxon.sf.net/feature/allowedProtocols', 'http,https')
 
+#create separate Saxon processor for Schematron
+schematron_saxon_proc = PySaxonProcessor()
+
 # temporary workaround for security vulnerability with XXE, disallow DTDs/DOCTYPE
 #https://saxonica.plan.io/issues/6711#note-12
 
@@ -114,7 +117,7 @@ async def transform(xslt_request: Request):
             result_docs.append({'url': uri.string_value, 'content': xdm_map.get(uri).head.string_value})
         result_python_map = {'results': result_docs}
 
-    xpath_processor.exception_clear()
+    #xpath_processor.exception_clear()
 
     return result_python_map
 
@@ -155,7 +158,7 @@ async def xquery(xquery_request: Request):
         else:
             result_python_map = { 'results': [serialized_result] }
 
-        xquery_processor.exception_clear()
+        #xquery_processor.exception_clear()
 
         return result_python_map
 
@@ -198,7 +201,7 @@ async def xpath(xpath_request: Request):
             result_items.append(str(xdm_item))
         result_python_map = { 'results': result_items }
 
-    xpath_processor.exception_clear()
+    #xpath_processor.exception_clear()
 
     return result_python_map
 
@@ -212,20 +215,18 @@ async def schematron(schematron_request: Request):
     #xslt30_processor.set_cwd('.')
 
     try:
-        saxon_proc.clear_configuration_properties()
-        xslt30_processor = saxon_proc.new_xslt30_processor()
+        xslt30_processor = schematron_saxon_proc.new_xslt30_processor()
         xslt30_processor.set_cwd('.')
-        compiled_schxslt = xslt30_processor.compile_stylesheet(stylesheet_file='pipeline-for-svrl.xsl.SaxonEE12CompiledForHE.sef')
+        compiled_schxslt = xslt30_processor.compile_stylesheet(stylesheet_file='transpile.xsl')
     except RuntimeError as e:
         return { 'messages' : f'Schematron compilation failed: {e}'}
     else:
-        saxon_proc.set_configuration_property('http://saxon.sf.net/feature/allowedProtocols', 'http,https')
-        xslt30_processor = saxon_proc.new_xslt30_processor()
+        xslt30_processor = schematron_saxon_proc.new_xslt30_processor()
 
         #doc_builder = saxon_proc.new_document_builder()
 
         try:
-            schematron_node = saxon_proc.parse_xml(xml_text=schematron_code, encoding="utf8")#doc_builder.parse_xml(xml_text=schematron_code, encoding="utf8")
+            schematron_node = schematron_saxon_proc.parse_xml(xml_text=schematron_code, encoding="utf8")#doc_builder.parse_xml(xml_text=schematron_code, encoding="utf8")
         except RuntimeError as e:
             return { 'messages' : f'Error(s) parsing your Schematron: {e}' }
         else:
@@ -234,7 +235,7 @@ async def schematron(schematron_request: Request):
             except RuntimeError as e:
                 return { 'messages' : f'Schematron compilation failed: {e}' }
             else:
-                xslt30_processor = saxon_proc.new_xslt30_processor()
+                xslt30_processor = schematron_saxon_proc.new_xslt30_processor()
 
                 try:
                     compiled_schematron_executable = xslt30_processor.compile_stylesheet(stylesheet_node=compiled_schematron.head)
@@ -242,7 +243,7 @@ async def schematron(schematron_request: Request):
                     return { 'messages' : 'Schematron compilation failed: ' }
                 else:
                     try:
-                        xdm_node = saxon_proc.parse_xml(xml_text=xml_code, encoding="utf8")#doc_builder.parse_xml(xml_text=xml_code, encoding="utf8")
+                        xdm_node = schematron_saxon_proc.parse_xml(xml_text=xml_code, encoding="utf8")#doc_builder.parse_xml(xml_text=xml_code, encoding="utf8")
                     except RuntimeError as e:
                         return {'messages': f'Error(s) parsing input XML: {e}' }
                     else:
